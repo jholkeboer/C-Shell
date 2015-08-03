@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -26,49 +27,87 @@ int main(int argc, char **argv) {
 void loopshell(void) {
 	char *line = malloc(sizeof(char) * MAX_COMMAND_SIZE);
 	int status = 1;
+	int waitstatus;
 	
 	//display prompt
 	do {
 		printf(": ");
 		line = readline();
-		printf("%s", line);
+//		int forkid = fork();
+// 		if (forkid == 0) {
+// 			execlp(line, line, NULL);
+// 		}
+// 		if (strcmp(line, "exit\n") == 0) {
+// 			exit(0);
+// 		}
+		printf("Running command %s:\n", line);
+		execlp(line, line, NULL);
+// 		pid_t child;
+// 		child = waitpid(-1,&waitstatus);
+// 		printf("%d", waitstatus);
 		free(line);
 		status = 0;
 	} while (status);
 }
 
 char *readline(void) {
-// 	int buffersize = MAX_COMMAND_SIZE;
-// 	int index = 0;
-// 	int nextchar;
-// 	
-// 	// allocate memory for buffer
-// 	char *buffer = malloc(sizeof(char) * buffersize);
-// 	
-// 	// allocation error check
-// 	if (!buffer) {
-// 		printf("Error: Buffer was not allocated.\n");
-// 		exit(EXIT_FAILURE);
-// 	}
-// 	
-// 	// read characters until EOF
-// 	nextchar = getchar();
-// 	if (nextchar == EOF || nextchar == '\n') {
-// 		// if we've reached the end of the file or an newline,
-// 		// terminate the string
-// 		buffer[index] = '\0';
-// 		return buffer;
-// 	} else {
-// 		buffer[index] = nextchar;
-// 	}
-// 	index++;
-// 	
-// 	if (index > buffersize) {
-// 		printf("Error: Your command was too long.\n");
-// 		exit(EXIT_FAILURE);
-// 	}
-	char *buffer = NULL;
-	ssize_t buffersize = MAX_COMMAND_SIZE;
-	getline(&buffer, &buffersize, stdin);
-	return buffer;
+	char *buffer = malloc(sizeof(char) * MAX_COMMAND_SIZE);
+	int index = 0;
+	int nextchar;
+	
+	if (!buffer) {
+		fprintf(stderr, "readline buffer not allocated.\n");
+		exit(1);
+	}
+	
+	while (1) {
+		nextchar = getchar();
+		if (nextchar == EOF || nextchar == '\n' || nextchar == '#') {
+			// this condition decides when to stop collecting input.
+			// newlines would be the end of the command.
+			// the # will ignore comments
+			buffer[index] = '\0';	// terminate the string
+			return buffer;
+		} else {
+			buffer[index] = nextchar;
+		}
+		index++;
+		
+		if (index > MAX_COMMAND_SIZE) {
+			fprintf(stderr, "Error: command too long. Max length 2048 chars.");
+			exit(1);
+		}
+	}
+
+// 	char *buffer = NULL;
+// 	ssize_t buffersize = MAX_COMMAND_SIZE;
+// 	getline(&buffer, &buffersize, stdin);
+// 	return buffer;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
