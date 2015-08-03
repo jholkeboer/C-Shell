@@ -32,21 +32,25 @@ void loopshell(void) {
 	//display prompt
 	do {
 		printf(": ");
+		fflush(stdin);
 		line = readline();
-//		int forkid = fork();
-// 		if (forkid == 0) {
-// 			execlp(line, line, NULL);
-// 		}
-// 		if (strcmp(line, "exit\n") == 0) {
-// 			exit(0);
-// 		}
+
+		printf("Line %s\n",line);
+
+		if (strcmp(line, "exit") == 0) {
+			exit(0);
+		}
+		int forkid = fork();
+ 		if (forkid == 0) {
+ 			execlp(line, line, NULL);
+ 		}
+
 		printf("Running command %s:\n", line);
-		execlp(line, line, NULL);
 // 		pid_t child;
 // 		child = waitpid(-1,&waitstatus);
 // 		printf("%d", waitstatus);
 		free(line);
-		status = 0;
+// 		status = 0;
 	} while (status);
 }
 
@@ -67,6 +71,7 @@ char *readline(void) {
 			// newlines would be the end of the command.
 			// the # will ignore comments
 			buffer[index] = '\0';	// terminate the string
+			while ((nextchar = getchar()) != '\n' && nextchar != EOF);
 			return buffer;
 		} else {
 			buffer[index] = nextchar;
