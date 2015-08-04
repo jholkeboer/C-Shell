@@ -21,6 +21,9 @@ void loopshell(void);
 char *readline(void);
 char **splitline(char *line);
 
+int exitstatus;
+
+
 // main function
 int main(int argc, char **argv) {
 	loopshell();
@@ -31,6 +34,9 @@ int main(int argc, char **argv) {
 void loopshell(void) {
 	int status = 1;
 	
+	// this will carry the status of the waitpid command
+	int waitstatus;
+	
 	//display prompt
 	do {
 		char *line = malloc(sizeof(char) * MAX_COMMAND_SIZE);
@@ -38,13 +44,16 @@ void loopshell(void) {
 		printf(": ");
 
 		line = readline();
-		printf("Line = %s",line);
+		//printf("Line = %s",line);
 		int i;
 		
 		// detect blank line
-		if (line[0] == '\n') {
+		if (line[0] == '\n' || line[0] == '#') {
+			// if line is blank, give a fresh shell prompt
+			free(line);
 			continue;
 		}
+		
 		// detect comments
 		for (i=0; i < MAX_COMMAND_SIZE - 1; i++) {
 			if (line[i] == '#') {
@@ -53,7 +62,8 @@ void loopshell(void) {
 				line[i+1] = '\0';
 			}
 		}
-		//printf("Parsed line = %s",line);
+		
+		// parse input into arguments
 		args = splitline(line);
 
 		// detect exit command
@@ -62,10 +72,31 @@ void loopshell(void) {
 		}
 		
 		// detect cd command
-		
+		if (strcmp(args[0], "cd") == 0) {
+			if (args[1] == NULL) {
+				// change to home directory
+				char *homedir = getenv("HOME");
+				chdir(homedir);
+				continue;
+			}
+			else {
+				// change directory to argument
+				chdir(args[1]);
+				continue;
+			}
+		}
 		
 		// detect status command
-		
+		if (strcmp(args[0], "status") == 0) {
+			if (&exitstatus != NULL) {
+				printf("%d\n",exitstatus);		
+			} else {
+				printf("No foreground processes run yet.\n");
+			}
+			free(args);
+			free(line);
+			continue;
+		}
 		
 		// if no built in commands are recognized,
 		// fork and execute the command
@@ -73,8 +104,7 @@ void loopshell(void) {
 		// these variables will hold process id's returned from fork()
 		pid_t childpid, wait;
 		
-		// this will carry the status of the wait command
-		int waitstatus;
+
 		
 		// fork the program
 		childpid = fork();
@@ -84,6 +114,7 @@ void loopshell(void) {
 			// in this case, we are in the child process
 			if (execvp(args[0], args) == -1 ) {
 				printf("Error: %s did not run successfully.\n", args[0]);
+				exit(1);
 			}
 			// this will only exit if child process did not run
 			exit(0);
@@ -98,6 +129,9 @@ void loopshell(void) {
 			do {
 				wait = waitpid(childpid, &waitstatus, WUNTRACED);
 			} while (!WIFEXITED(waitstatus) && !WIFSIGNALED(waitstatus));
+			if (WIFEXITED(waitstatus)) {
+				exitstatus = WEXITSTATUS(waitstatus);
+			}
 		}
 		
 // 		int forkid = fork();
@@ -105,7 +139,8 @@ void loopshell(void) {
 //  			execlp(line, line, NULL);
 //  		}
 
-		// free memory for strings
+		// free memory
+		free(args);
 		free(line);
 	} while (status);
 }
