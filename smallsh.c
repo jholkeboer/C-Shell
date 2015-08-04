@@ -1,6 +1,6 @@
 // Jack Holkeboer
 // Oregon State CS344
-// August 3st, 2015
+// August 3rd, 2015
 // holkeboj@onid.oregonstate.edu
 // Program 3: smallsh
 
@@ -51,19 +51,49 @@ void loopshell(void) {
 		}
 		printf("Parsed line = %s",line);
 		args = splitline(line);
-		printf("Args: \n");
-		if (args[0] != NULL) {
-			printf("%s\n",args[0]);
-		}
-		if (args[1] != NULL) {
-			printf("%s\n",args[1]);
-		}
-		if (args[2] != NULL) {
-			printf("%s\n",args[2]);
-		}
+
 		// detect exit command
-		if (strcmp(line, "exit\n") == 0) {
+		if (strcmp(args[0], "exit") == 0) {
 			exit(0);
+		}
+		
+		// detect cd command
+		
+		
+		// detect status command
+		
+		
+		// if no built in commands are recognized,
+		// fork and execute the command
+		
+		// these variables will hold process id's returned from fork()
+		pid_t childpid, wait;
+		
+		// this will carry the status of the wait command
+		int waitstatus;
+		
+		// fork the program
+		childpid = fork();
+		
+		// conditional structure for child process
+		if (childpid == 0) {
+			// in this case, we are in the child process
+			if (execvp(args[0], args) == -1 ) {
+				printf("Error: %s did not run successfully.\n", args[0]);
+			}
+			// this will only exit if child process did not run
+			exit(0);
+		}
+		// condition for unsuccessful fork
+		else if (childpid < 0) {
+			perror("Error: unable to fork.");
+			exit(0);
+		}
+		// if we reach this condition, we are in the parent process.
+		else {
+			do {
+				wait = waitpid(childpid, &waitstatus, WUNTRACED);
+			} while (!WIFEXITED(waitstatus) && !WIFSIGNALED(waitstatus));
 		}
 		
 // 		int forkid = fork();
@@ -89,6 +119,7 @@ char **splitline(char *line) {
 	char **tokenargs = malloc(MAX_ARGS * sizeof(char*));
 	
 	// Tokenize the input line using the strtok() function
+	// delimit by space or newline
 	nexttoken = strtok(line, " \n");
 	while (nexttoken != NULL) {
 		tokenargs[index] = nexttoken;
@@ -99,6 +130,8 @@ char **splitline(char *line) {
 	// terminate the argument with a NULL value
 	// so it can be passed to exec()
 	tokenargs[index] = NULL;
+	
+	// return array of arguments
 	return tokenargs;
 }
 
