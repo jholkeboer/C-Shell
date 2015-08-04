@@ -11,6 +11,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 
 #define MAX_COMMAND_SIZE 2048
 #define MAX_ARGS 512
@@ -18,8 +19,9 @@
 // function prototypes
 void loopshell(void);
 char *readline(void);
-void clearbuffer();
+char **splitline(char *line);
 
+// main function
 int main(int argc, char **argv) {
 	loopshell();
 	return 0;
@@ -28,90 +30,77 @@ int main(int argc, char **argv) {
 // function declarations
 void loopshell(void) {
 	int status = 1;
-	int waitstatus;
-	int bufclr;
 	
 	//display prompt
 	do {
 		char *line = malloc(sizeof(char) * MAX_COMMAND_SIZE);
-		char *parsedline = malloc(sizeof(char) * MAX_COMMAND_SIZE);
+		char **args;
 		printf(": ");
-		//while ((bufclr = getchar()) != '\n' && bufclr != EOF );
-		//tcflush(STDIN_FILENO, TCIFLUSH);
-// 		do {
-// 			bufclr = getchar();
-// 		} while (bufclr != '\n' && bufclr != EOF);
-// 		fflush(stdin);
-		//clearbuffer();
+
 		line = readline();
 		printf("Line = %s",line);
 		int i;
-		for (i=0, i < MAX_COMMAND_SIZE; i++) {
+		
+		// detect comments
+		for (i=0; i < MAX_COMMAND_SIZE - 1; i++) {
 			if (line[i] == '#') {
-				line[i] = '\0';
+				line[i] = '\n';
+				// terminate string after comment is detected
+				line[i+1] = '\0';
 			}
 		}
 		printf("Parsed line = %s",line);
-
-
+		args = splitline(line);
+		printf("Args: \n");
+		if (args[0] != NULL) {
+			printf("%s\n",args[0]);
+		}
+		if (args[1] != NULL) {
+			printf("%s\n",args[1]);
+		}
+		if (args[2] != NULL) {
+			printf("%s\n",args[2]);
+		}
+		// detect exit command
 		if (strcmp(line, "exit\n") == 0) {
 			exit(0);
 		}
+		
 // 		int forkid = fork();
 //  		if (forkid == 0) {
 //  			execlp(line, line, NULL);
 //  		}
 
-// 		pid_t child;
-// 		child = waitpid(-1,&waitstatus);
-// 		printf("%d", waitstatus);
-		free (parsedline);
+		// free memory for strings
 		free(line);
 	} while (status);
 }
 
 char *readline(void) {
-// 	char *buffer = malloc(sizeof(char) * MAX_COMMAND_SIZE);
-// 	int index = 0;
-// 	int nextchar;
-// 	
-// 	if (!buffer) {
-// 		fprintf(stderr, "readline buffer not allocated.\n");
-// 		exit(1);
-// 	}
-// 	
-// 	while (1) {
-// 		nextchar = getchar();
-// 		if (nextchar == EOF || nextchar == '\n' || nextchar == '#') {
-// 			// this condition decides when to stop collecting input.
-// 			// newlines would be the end of the command.
-// 			// the # will ignore comments
-// 			buffer[index] = '\0';	// terminate the string
-// 			return buffer;
-// 		} else {
-// 			buffer[index] = nextchar;
-// 		}
-// 		index++;
-// 		
-// 		if (index > MAX_COMMAND_SIZE) {
-// 			fprintf(stderr, "Error: command too long. Max length 2048 chars.");
-// 			exit(1);
-// 		}
-// 	}
-
 	char *buffer = NULL;
 	ssize_t buffersize = MAX_COMMAND_SIZE;
 	getline(&buffer, &buffersize, stdin);
 	return buffer;
 }
 
-void clearbuffer() {
-	int c;
-	while ((c = getchar()) != '\n' && c != EOF);
+char **splitline(char *line) {
+	int index = 0;
+	char* nexttoken;
+	char **tokenargs = malloc(MAX_ARGS * sizeof(char*));
+	
+	// Tokenize the input line using the strtok() function
+	nexttoken = strtok(line, " \n");
+	while (nexttoken != NULL) {
+		tokenargs[index] = nexttoken;
+		index++;
+		nexttoken = strtok(NULL, " \n");
+	}
+	
+	// terminate the argument with a NULL value
+	// so it can be passed to exec()
+	tokenargs[index] = NULL;
+	return tokenargs;
 }
-
-
-
 
 
 
