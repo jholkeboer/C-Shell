@@ -41,6 +41,10 @@ void loopshell(void) {
 		printf("Line = %s",line);
 		int i;
 		
+		// detect blank line
+		if (line[0] == '\n') {
+			continue;
+		}
 		// detect comments
 		for (i=0; i < MAX_COMMAND_SIZE - 1; i++) {
 			if (line[i] == '#') {
@@ -49,7 +53,7 @@ void loopshell(void) {
 				line[i+1] = '\0';
 			}
 		}
-		printf("Parsed line = %s",line);
+		//printf("Parsed line = %s",line);
 		args = splitline(line);
 
 		// detect exit command
