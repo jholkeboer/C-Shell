@@ -21,11 +21,34 @@ void loopshell(void);
 char *readline(void);
 char **splitline(char *line);
 
+// signal handlers
+void catchSIGCHLD(int sig) {
+	printf("Child caught\n");
+	int bgstatus;
+	pid_t bgwait;
+	bgwait = waitpid(-1,&bgstatus,WNOHANG);
+	printf("%d\n");
+}
+
+
 int exitstatus;
+int termstatus;
+int bgflag;
+int firstrun = 1;
+
+pid_t deadpid;
 
 
 // main function
 int main(int argc, char **argv) {
+// 	struct sigaction bghandler;
+// 	bghandler.sa_handler = catchSIGCHLD;
+// 	bghandler.sa_flags = 0;
+// 	
+// 	sigaction(SIGCHLD,&bghandler,NULL);
+	//signal(SIGCHLD,catchSIGCHLD);
+
+
 	loopshell();
 	return 0;
 }
@@ -33,12 +56,20 @@ int main(int argc, char **argv) {
 // function declarations
 void loopshell(void) {
 	int status = 1;
-	
+
 	// this will carry the status of the waitpid command
 	int waitstatus;
-	
+
 	//display prompt
 	do {
+		int bgstatus;
+		pid_t bgwait;
+		
+		bgwait = waitpid(-1,&bgstatus,WNOHANG);
+		if (WIFEXITED(bgstatus) && bgwait > 0) {
+			printf("Background process %d exited with status %d\n",bgwait,WEXITSTATUS(bgstatus));
+		}
+		
 		char *line = malloc(sizeof(char) * MAX_COMMAND_SIZE);
 		char **args;
 		printf(": ");
@@ -88,7 +119,6 @@ void loopshell(void) {
 		// check for background command
 		if (strcmp(args[argindex-1], "&") == 0) {
 			backgroundflag = 1;
-			printf("Background command detected.\n");
 			args[argindex-1] = NULL;
 		}
 		
@@ -200,32 +230,20 @@ void loopshell(void) {
 		}
 		// if we reach this condition, we are in the parent process.
 		else {
-			if (backgroundflag == 1) {
-				printf("Background process id %d\n", childpid);
-// 				do {
-// 					waitpid(-1, &waitstatus, WNOHANG);
-// 				} while (!WIFEXITED(waitstatus) && !WIFSIGNALED(waitstatus));
-// 				if (WIFEXITED(waitstatus)) {
-// 					exitstatus = WEXITSTATUS(waitstatus);
-// 					printf("Background process %d terminated with exit status %d\n",childpid,exitstatus);
-// 				}
-				pid_t bgcatch;
-				while ((bgcatch = waitpid(0, &waitstatus, WNOHANG)) != -1) {
-					exitstatus = WEXITSTATUS(waitstatus);
+				if (backgroundflag == 0) {
+					do {
+						wait = waitpid(childpid, &waitstatus, WUNTRACED);
+					} while (!WIFEXITED(waitstatus) && !WIFSIGNALED(waitstatus));
+					if (WIFEXITED(waitstatus)) {
+						exitstatus = WEXITSTATUS(waitstatus);
+					}
+// 					else if (WIFSIGNALED(waitstatus)) {
+// 						exitstatus = WTERMSIG(waitstatus);
+// 					}
 				}
-				if (WIFEXITED(waitstatus)) {
-					exitstatus = WEXITSTATUS(waitstatus);
-					printf("Background process %d terminated with exit status %d\n",childpid,exitstatus);			
+				else if (backgroundflag == 1) {
+					printf("Background pid %d\n",childpid);
 				}
-				
-			} else {
-				do {
-					wait = waitpid(childpid, &waitstatus, WUNTRACED);
-				} while (!WIFEXITED(waitstatus) && !WIFSIGNALED(waitstatus));
-				if (WIFEXITED(waitstatus)) {
-					exitstatus = WEXITSTATUS(waitstatus);
-				}
-			}
 		}
 		
 		// free memory
