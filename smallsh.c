@@ -42,6 +42,10 @@ void loopshell(void) {
 		char *line = malloc(sizeof(char) * MAX_COMMAND_SIZE);
 		char **args;
 		printf(": ");
+		
+		// these flags are set if the '>' or '<' characters are present
+		int pointleftflag = 0;
+		int pointrightflag = 0;
 
 		line = readline();
 		//printf("Line = %s",line);
@@ -65,6 +69,40 @@ void loopshell(void) {
 		
 		// parse input into arguments
 		args = splitline(line);
+		
+		// look for '<' or '>' characters
+		int argindex = 0;
+		while (args[argindex] != NULL) {
+			if (strcmp(args[argindex], "<") == 0) {
+				pointleftflag = 1;
+			}
+			else if (strcmp(args[argindex], ">") == 0) {
+				pointrightflag = 1;
+			}
+			argindex++;
+		}
+		
+		// arrays to hold split arguments
+		char **leftargs = malloc(MAX_ARGS * sizeof(char*));
+		char **rightargs = malloc(MAX_ARGS * sizeof(char*));
+		FILE *outfile;
+		FILE *infile;
+		
+// open files if necessary
+		if (pointleftflag == 1) {
+			printf("Detected <\n");
+			printf("Trying to open %s\n",args[2]);
+			if (!(infile = fopen(args[2],"r"))) {
+				perror("Error: could not open file");
+			};		
+		}
+		else if (pointrightflag == 1) {
+			printf("Detected >\n");
+			printf("Trying to open %s\n",args[2]);
+			if (!(outfile = fopen(args[2],"w"))) {
+				perror("Error: could not open file");
+			};		
+		}		
 
 		// detect exit command
 		if (strcmp(args[0], "exit") == 0) {
@@ -89,7 +127,7 @@ void loopshell(void) {
 		// detect status command
 		if (strcmp(args[0], "status") == 0) {
 			if (&exitstatus != NULL) {
-				printf("%d\n",exitstatus);		
+				printf("exit value %d\n",exitstatus);		
 			} else {
 				printf("No foreground processes run yet.\n");
 			}
@@ -103,18 +141,32 @@ void loopshell(void) {
 		
 		// these variables will hold process id's returned from fork()
 		pid_t childpid, wait;
-		
 
-		
 		// fork the program
 		childpid = fork();
 		
 		// conditional structure for child process
 		if (childpid == 0) {
 			// in this case, we are in the child process
-			if (execvp(args[0], args) == -1 ) {
+			if (pointleftflag == 1) {
+				dup2(fileno(infile),0);
+				fclose(infile);
+				if (execlp(args[0], args[0], NULL) == -1) {
+					printf("Error: %s did not run successfully.\n", args[0]);
+				};
+			}
+			else if (pointrightflag == 1) {
+				dup2(fileno(outfile),1);
+				fclose(outfile);
+				if (execlp(args[0], args[0], NULL) == -1) {
+					printf("Error: %s did not run successfully.\n", args[0]);
+				};		
+			}
+			else {
+				if (execvp(args[0], args) == -1 ) {
 				printf("Error: %s did not run successfully.\n", args[0]);
 				exit(1);
+				}
 			}
 			// this will only exit if child process did not run
 			exit(0);
