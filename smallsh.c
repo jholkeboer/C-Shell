@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 #define MAX_COMMAND_SIZE 2048
 #define MAX_ARGS 512
@@ -22,13 +23,11 @@ char *readline(void);
 char **splitline(char *line);
 
 // signal handlers
-void catchSIGCHLD(int sig) {
-	printf("Child caught\n");
-	int bgstatus;
-	pid_t bgwait;
-	bgwait = waitpid(-1,&bgstatus,WNOHANG);
-	printf("%d\n");
+void catchSIGTERM(int sig) {
+	printf("Caught sigterm\n");
 }
+
+
 
 
 int exitstatus;
@@ -40,15 +39,15 @@ pid_t deadpid;
 
 
 // main function
-int main(int argc, char **argv) {
-// 	struct sigaction bghandler;
-// 	bghandler.sa_handler = catchSIGCHLD;
-// 	bghandler.sa_flags = 0;
-// 	
-// 	sigaction(SIGCHLD,&bghandler,NULL);
-	//signal(SIGCHLD,catchSIGCHLD);
+int main(int argc, char **argv) {	
+	struct sigaction act;
+	act.sa_handler = SIG_IGN;
+	act.sa_flags = 0;
+	sigfillset(&(act.sa_mask));
 
-
+	sigaction(SIGINT, &act, NULL);	
+	
+	
 	loopshell();
 	return 0;
 }
@@ -65,20 +64,19 @@ void loopshell(void) {
 		int bgstatus;
 		pid_t bgwait;
 		
+		// check for completed background process
 		bgwait = waitpid(-1,&bgstatus,WNOHANG);
 		if (WIFEXITED(bgstatus) && bgwait > 0) {
 			printf("Background process %d exited with status %d\n",bgwait,WEXITSTATUS(bgstatus));
 		}
 		
+		// allocate to store input
 		char *line = malloc(sizeof(char) * MAX_COMMAND_SIZE);
 		char **args;
-		printf(": ");
 		
-
-
+		// begin prompt
+		printf(": ");
 		line = readline();
-		//printf("Line = %s",line);
-		int i;
 		
 		// detect blank line
 		if (line[0] == '\n' || line[0] == '#') {
@@ -88,6 +86,7 @@ void loopshell(void) {
 		}
 		
 		// detect comments
+		int i;
 		for (i=0; i < MAX_COMMAND_SIZE - 1; i++) {
 			if (line[i] == '#') {
 				line[i] = '\n';
@@ -132,17 +131,13 @@ void loopshell(void) {
 		
 		// open files if necessary
 		if (pointleftflag == 1) {
-			printf("Detected <\n");
-			printf("Trying to open %s\n",args[2]);
 			if (!(infile = fopen(args[2],"r"))) {
-				perror("Error: could not open file");
+				perror("Error: could not open that file");
 			};		
 		}
 		else if (pointrightflag == 1) {
-			printf("Detected >\n");
-			printf("Trying to open %s\n",args[2]);
 			if (!(outfile = fopen(args[2],"w"))) {
-				perror("Error: could not open file");
+				perror("Error: could not open that file");
 			};		
 		}		
 
@@ -169,7 +164,7 @@ void loopshell(void) {
 		// detect status command
 		if (strcmp(args[0], "status") == 0) {
 			if (&exitstatus != NULL) {
-				printf("exit value %d\n",exitstatus);		
+				printf("Last command had exit value %d\n",exitstatus);		
 			} else {
 				printf("No foreground processes run yet.\n");
 			}
@@ -190,6 +185,19 @@ void loopshell(void) {
 		
 		// conditional structure for child process
 		if (childpid == 0) {
+			struct sigaction act2;
+			act2.sa_handler = SIG_DFL;
+			act2.sa_flags = 0;
+			sigfillset(&(act2.sa_mask));
+			sigaction(SIGINT,&act2,NULL);
+			
+			struct sigaction act3;
+			act3.sa_handler = SIG_DFL;
+			act3.sa_flags = 0;
+			sigfillset(&(act3.sa_mask));
+			sigaction(SIGTERM,&act3,NULL);
+			
+
 			// in this case, we are in the child process
 			if (backgroundflag == 1) {
 				FILE *nullfile;
@@ -237,9 +245,7 @@ void loopshell(void) {
 					if (WIFEXITED(waitstatus)) {
 						exitstatus = WEXITSTATUS(waitstatus);
 					}
-// 					else if (WIFSIGNALED(waitstatus)) {
-// 						exitstatus = WTERMSIG(waitstatus);
-// 					}
+
 				}
 				else if (backgroundflag == 1) {
 					printf("Background pid %d\n",childpid);
