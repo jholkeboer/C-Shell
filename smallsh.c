@@ -43,9 +43,7 @@ void loopshell(void) {
 		char **args;
 		printf(": ");
 		
-		// these flags are set if the '>' or '<' characters are present
-		int pointleftflag = 0;
-		int pointrightflag = 0;
+
 
 		line = readline();
 		//printf("Line = %s",line);
@@ -70,6 +68,11 @@ void loopshell(void) {
 		// parse input into arguments
 		args = splitline(line);
 		
+		// these flags are set if the '>' or '<' or '&' characters are present
+		int pointleftflag = 0;
+		int pointrightflag = 0;
+		int backgroundflag = 0;
+		
 		// look for '<' or '>' characters
 		int argindex = 0;
 		while (args[argindex] != NULL) {
@@ -82,13 +85,22 @@ void loopshell(void) {
 			argindex++;
 		}
 		
+		// check for background command
+		if (strcmp(args[argindex-1], "&") == 0) {
+			backgroundflag = 1;
+			printf("Background command detected.\n");
+			args[argindex-1] = NULL;
+		}
+		
 		// arrays to hold split arguments
 		char **leftargs = malloc(MAX_ARGS * sizeof(char*));
 		char **rightargs = malloc(MAX_ARGS * sizeof(char*));
+		
+		// file pointers for redirection
 		FILE *outfile;
 		FILE *infile;
 		
-// open files if necessary
+		// open files if necessary
 		if (pointleftflag == 1) {
 			printf("Detected <\n");
 			printf("Trying to open %s\n",args[2]);
@@ -145,9 +157,19 @@ void loopshell(void) {
 		// fork the program
 		childpid = fork();
 		
+		
 		// conditional structure for child process
 		if (childpid == 0) {
 			// in this case, we are in the child process
+			if (backgroundflag == 1) {
+				FILE *nullfile;
+				nullfile = fopen("/dev/null", "w");
+				dup2(fileno(nullfile),1);
+				fclose(nullfile);
+				if (execvp(args[0], args) == -1) {
+					printf("Error: %s did not run successfully.\n", args[0]);					
+				}
+			}
 			if (pointleftflag == 1) {
 				dup2(fileno(infile),0);
 				fclose(infile);
@@ -178,19 +200,34 @@ void loopshell(void) {
 		}
 		// if we reach this condition, we are in the parent process.
 		else {
-			do {
-				wait = waitpid(childpid, &waitstatus, WUNTRACED);
-			} while (!WIFEXITED(waitstatus) && !WIFSIGNALED(waitstatus));
-			if (WIFEXITED(waitstatus)) {
-				exitstatus = WEXITSTATUS(waitstatus);
+			if (backgroundflag == 1) {
+				printf("Background process id %d\n", childpid);
+// 				do {
+// 					waitpid(-1, &waitstatus, WNOHANG);
+// 				} while (!WIFEXITED(waitstatus) && !WIFSIGNALED(waitstatus));
+// 				if (WIFEXITED(waitstatus)) {
+// 					exitstatus = WEXITSTATUS(waitstatus);
+// 					printf("Background process %d terminated with exit status %d\n",childpid,exitstatus);
+// 				}
+				pid_t bgcatch;
+				while ((bgcatch = waitpid(0, &waitstatus, WNOHANG)) != -1) {
+					exitstatus = WEXITSTATUS(waitstatus);
+				}
+				if (WIFEXITED(waitstatus)) {
+					exitstatus = WEXITSTATUS(waitstatus);
+					printf("Background process %d terminated with exit status %d\n",childpid,exitstatus);			
+				}
+				
+			} else {
+				do {
+					wait = waitpid(childpid, &waitstatus, WUNTRACED);
+				} while (!WIFEXITED(waitstatus) && !WIFSIGNALED(waitstatus));
+				if (WIFEXITED(waitstatus)) {
+					exitstatus = WEXITSTATUS(waitstatus);
+				}
 			}
 		}
 		
-// 		int forkid = fork();
-//  		if (forkid == 0) {
-//  			execlp(line, line, NULL);
-//  		}
-
 		// free memory
 		free(args);
 		free(line);
