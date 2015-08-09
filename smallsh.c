@@ -14,6 +14,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 
+
 #define MAX_COMMAND_SIZE 2048
 #define MAX_ARGS 512
 
@@ -22,37 +23,27 @@ void loopshell(void);
 char *readline(void);
 char **splitline(char *line);
 
-// signal handlers
-void catchSIGTERM(int sig) {
-	printf("Caught sigterm\n");
-}
-
-
-
-
+// holds exit status from wait()
 int exitstatus;
-int termstatus;
-int bgflag;
-int firstrun = 1;
-
-pid_t deadpid;
 
 
 // main function
-int main(int argc, char **argv) {	
+int main(int argc, char **argv) {
+	// ignore interrupt signal	
 	struct sigaction act;
 	act.sa_handler = SIG_IGN;
 	act.sa_flags = 0;
 	sigfillset(&(act.sa_mask));
-
 	sigaction(SIGINT, &act, NULL);	
 	
-	
+	// input loop
 	loopshell();
 	return 0;
 }
 
 // function declarations
+
+// main loop function
 void loopshell(void) {
 	int status = 1;
 
@@ -68,6 +59,11 @@ void loopshell(void) {
 		bgwait = waitpid(-1,&bgstatus,WNOHANG);
 		if (WIFEXITED(bgstatus) && bgwait > 0) {
 			printf("Background process %d exited with status %d\n",bgwait,WEXITSTATUS(bgstatus));
+		}
+		else if (WIFSIGNALED(bgstatus) && bgwait > 0) {
+			int signalreceived;
+			signalreceived = WTERMSIG(bgstatus);
+			printf("Process %d terminated by signal %d\n",bgwait,signalreceived);
 		}
 		
 		// allocate to store input
@@ -182,24 +178,25 @@ void loopshell(void) {
 		// fork the program
 		childpid = fork();
 		
+		// default handling of interrupt signal	
+		struct sigaction act2;
+		act2.sa_handler = SIG_DFL;
+		act2.sa_flags = 0;
+		sigfillset(&(act2.sa_mask));
+		sigaction(SIGINT,&act2,NULL);
+	
 		
 		// conditional structure for child process
 		if (childpid == 0) {
-			struct sigaction act2;
-			act2.sa_handler = SIG_DFL;
-			act2.sa_flags = 0;
-			sigfillset(&(act2.sa_mask));
-			sigaction(SIGINT,&act2,NULL);
-			
 			struct sigaction act3;
-			act3.sa_handler = SIG_DFL;
+			act3.sa_handler = NULL;
 			act3.sa_flags = 0;
 			sigfillset(&(act3.sa_mask));
-			sigaction(SIGTERM,&act3,NULL);
-			
-
+			sigaction(SIGCHLD,&act3,NULL);		
+		
 			// in this case, we are in the child process
 			if (backgroundflag == 1) {
+				// background process case
 				FILE *nullfile;
 				nullfile = fopen("/dev/null", "w");
 				dup2(fileno(nullfile),1);
@@ -209,6 +206,7 @@ void loopshell(void) {
 				}
 			}
 			if (pointleftflag == 1) {
+				// case with <
 				dup2(fileno(infile),0);
 				fclose(infile);
 				if (execlp(args[0], args[0], NULL) == -1) {
@@ -216,6 +214,7 @@ void loopshell(void) {
 				};
 			}
 			else if (pointrightflag == 1) {
+				// case with >
 				dup2(fileno(outfile),1);
 				fclose(outfile);
 				if (execlp(args[0], args[0], NULL) == -1) {
@@ -223,6 +222,7 @@ void loopshell(void) {
 				};		
 			}
 			else {
+				// regular command
 				if (execvp(args[0], args) == -1 ) {
 				printf("Error: %s did not run successfully.\n", args[0]);
 				exit(1);
@@ -231,13 +231,16 @@ void loopshell(void) {
 			// this will only exit if child process did not run
 			exit(0);
 		}
+		
 		// condition for unsuccessful fork
 		else if (childpid < 0) {
 			perror("Error: unable to fork.");
 			exit(0);
 		}
+		
 		// if we reach this condition, we are in the parent process.
-		else {
+		else {	
+				// wait for foreground commands to finish
 				if (backgroundflag == 0) {
 					do {
 						wait = waitpid(childpid, &waitstatus, WUNTRACED);
@@ -247,6 +250,7 @@ void loopshell(void) {
 					}
 
 				}
+				// detect background command and print pid
 				else if (backgroundflag == 1) {
 					printf("Background pid %d\n",childpid);
 				}
